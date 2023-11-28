@@ -113,10 +113,14 @@ class REMMaker(object):
     :type cache_dir: str
 
     """
-    def __init__(self, dem, centerline_shp=None, out_dir='./',
+    def __init__(self, dem, tile_name='tile_name', centerline_shp=None, out_dir='./',
                  interp_pts=1000, k=None, eps=0.1, workers=4, cache_dir='./.cache'):
         self.dem = dem
         self.dem_name = os.path.basename(dem).split('.')[0]
+
+        # added by puzhao
+        if self.dem.startswith("https"): self.dem_name = tile_name
+
         self.centerline_shp = centerline_shp
         self.out_dir = out_dir
         self.cache_dir = cache_dir
@@ -389,7 +393,8 @@ class REMMaker(object):
         interpolated_values = np.array([])
         for i, chunk in enumerate(np.array_split(c_interpolate, chunk_count)):
             logging.info(f"{i / chunk_count * 100:.2f}%")
-            distances, indices = tree.query(chunk, k=self.k, eps=self.eps, workers=self.workers)
+            # distances, indices = tree.query(chunk, k=self.k, eps=self.eps, workers=self.workers) # modified by puzhao ------------------ double check
+            distances, indices = tree.query(chunk, k=self.k, eps=self.eps)
             # interpolate (IDW with power = 1)
             weights = 1 / distances  # weight river elevations by 1 / distance
             weights = weights / weights.sum(axis=1).reshape(-1, 1)  # normalize weights
@@ -411,7 +416,9 @@ class REMMaker(object):
         # make copy of DEM raster
         r = gdal.Open(self.dem, gdal.GA_ReadOnly)
         driver = gdal.GetDriverByName("GTiff")
-        rem = driver.CreateCopy(self.rem_ras, r, strict=0)
+        # rem = driver.CreateCopy(self.rem_ras, r, strict=0])
+        rem = driver.CreateCopy(self.rem_ras, r, strict=0, options=["TILED=YES", "COMPRESS=LZW", "INTERLEAVE=BAND"])
+
         # fill with REM array
         rem.GetRasterBand(1).WriteArray(self.rem_array)
         return self.rem_ras

@@ -1,5 +1,9 @@
 .idea/
 cache/
+.cache/
+.osm_cache/
+inputs/
+outputs/
 riverrem/.osm_cache/
 __pycache__/
 venv/
@@ -11,3 +15,4 @@ test_dems/
 *.shp
 *.shx
 *.prj
+
