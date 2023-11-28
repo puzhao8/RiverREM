@@ -12,18 +12,12 @@ For more information on REMs and this project see [this OpenTopography blog post
 
 ## Installation
 
-Install via conda:
+clone this repo and create a conda environment from the `env_mpc.yml`:
 
 ```bash
-conda install -c conda-forge riverrem
-```
-
-or clone this repo and create a conda environment from the `environment.yml`:
-
-```bash
-git clone https://github.com/opentopography/RiverREM.git
+git clone https://github.com/puzhao8/RiverREM
 cd RiverREM
-conda env create -n riverrem --file environment.yml
+conda env create -n riverrem --file env_mpc.yml
 ```
 
 In order to handle dependencies such as GDAL and OSMnx, it is highly recommended to install with `conda` instead of `pip` for ease of use. 
@@ -35,6 +29,7 @@ In order to handle dependencies such as GDAL and OSMnx, it is highly recommended
    - [OpenTopography](https://opentopography.org/)
    - [USGS](https://apps.nationalmap.gov/downloader/)
    - [Comprehensive list of DEM sources](https://github.com/DahnJ/Awesome-DEM)
+   - [MicroSoft Planetnary Computer (MPC)](https://planetarycomputer.microsoft.com/dataset/cop-dem-glo-30)
 
 2. Create an REM visualization with default arguments:
 
@@ -47,6 +42,33 @@ In order to handle dependencies such as GDAL and OSMnx, it is highly recommended
    # create an REM visualization with the given colormap
    rem_maker.make_rem_viz(cmap='mako_r')
    ```
+
+3. Scale up for large or global scale DEM to REM applications based on MPC:
+   
+   ```python
+   # create a Region of Interest (roi) in https://geojson.io/ or other platform, copy and paster coordinates
+   roi = dict(type = "Polygon", coordinates = [...])
+   
+   # Planetary computer's STAC URL
+   URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+   catalog = pystac_client.Client.open(URL)
+
+   # query by geometry
+   items = catalog.search(
+      intersects=roi,
+      collections=["cop-dem-glo-30"]
+      ).item_collection()
+
+   # get the list of queried tiles 
+   ids = [item['id'][:-4] for item in items.to_dict()['features']]
+   print(f"The total number of dem tiles: {len(ids)}")
+   pprint(ids)
+
+   # loop over each tile and convert DEM to REM
+   ```
+
+   Please follow the script "main_mpc_dem_to_rem.py".
+
 
 Options for adjusting colormaps, shading, interpolation parameters, and more are detailed in the [documentation](https://opentopography.github.io/RiverREM/).
 

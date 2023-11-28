@@ -11,15 +11,16 @@ from prettyprinter import pprint
 
 from riverrem.REMMaker import REMMaker
 
-
-# Planetary computer's STAC URL
-URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
-catalog = pystac_client.Client.open(URL)
+# # create a Region of Interest (roi) in https://geojson.io/ or other platform, copy and paster coordinates
+# roi = dict(type = "Polygon", coordinates = [...])
 
 # Geometry of Colombia Country
 minlon, minlat, maxlon, maxlat = -79.70677443301699, -3.635295809423141, -67.29293287446059, 12.831456778731706
 roi = dict(type = "Polygon", coordinates = [[[minlon, minlat], [minlon, maxlat], [maxlon, maxlat], [maxlon, minlat], [minlon, minlat]]])
-# roi = dict(type = "Polygon", coordinates = [])
+
+# Planetary computer's STAC URL
+URL = "https://planetarycomputer.microsoft.com/api/stac/v1"
+catalog = pystac_client.Client.open(URL)
 
 # query by geometry
 items = catalog.search(
@@ -58,6 +59,6 @@ for tile_name in [tile_name]: # ids:
 
 
 # TODO
-# upload the derived REM tiles as GEE asset of ImageCollection 
+# upload the derived REM tiles as GEE asset of ImageCollection, follow upload_to_gee.py
 
 # %%
