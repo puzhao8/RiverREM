@@ -33,11 +33,11 @@ ids = [item['id'][:-4] for item in items.to_dict()['features']]
 print(f"The total number of dem tiles: {len(ids)}")
 pprint(ids)
 
-#%%
-tile_name = "Copernicus_DSM_COG_10_N02_00_W072_00"
+#%% 
+# tile_name = "Copernicus_DSM_COG_10_N02_00_W072_00"
 
 # loop over each tile, calculate REM, and save 
-for tile_name in [tile_name]: # ids:
+for tile_name in ids: # ids:
     print()
     print(tile_name)
 
@@ -50,8 +50,7 @@ for tile_name in [tile_name]: # ids:
     # Open one of the data assets 
     asset_href = signed_item.assets["data"].href
     # ds = rioxarray.open_rasterio(asset_href)
-    # ds
-    # ds.values
+    # ds, ds.values
 
     # derive REM from DEM, and save it to "./outputs/" folder
     rem_maker = REMMaker(dem=asset_href, tile_name=tile_name, out_dir='./outputs')

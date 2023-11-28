@@ -64,7 +64,25 @@ In order to handle dependencies such as GDAL and OSMnx, it is highly recommended
    print(f"The total number of dem tiles: {len(ids)}")
    pprint(ids)
 
-   # loop over each tile and convert DEM to REM
+   # loop over each tile, calculate REM, and save 
+   for tile_name in ids: # ids:
+      print()
+      print(tile_name)
+
+      item_url = f"https://planetarycomputer.microsoft.com/api/stac/v1/collections/cop-dem-glo-30/items/{tile_name}_DEM"
+
+      # Load the individual item metadata and sign the assets
+      item = pystac.Item.from_file(item_url)
+      signed_item = planetary_computer.sign(item)
+
+      # Open one of the data assets 
+      asset_href = signed_item.assets["data"].href
+      # ds = rioxarray.open_rasterio(asset_href)
+      # ds, ds.values
+
+      # derive REM from DEM, and save it to "./outputs/" folder
+      rem_maker = REMMaker(dem=asset_href, tile_name=tile_name, out_dir='./outputs')
+      rem_maker.make_rem_viz(cmap='Blues', z=8)
    ```
 
    Please follow the script "main_mpc_dem_to_rem.py".
