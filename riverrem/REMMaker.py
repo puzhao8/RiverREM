@@ -247,12 +247,14 @@ class REMMaker(object):
         names = self.rivers.name.values
         # make name attribute more distinct to avoid conflict with geometry name attribute
         self.rivers['river_name'] = names
+
         # get unique names
         river_names = set(names)
         if len(river_names) == 0:
             raise Exception("Found river, but it does not have a listed name. Ensure the target river segment(s) "
                             "have a \"name\" tag: \n\thttps://www.openstreetmap.org/edit")
         logging.info(f"Found river(s): {', '.join(river_names)}")
+
         # find river with greatest length (sum of all segments with same name)
         logging.info("\nRiver lengths:")
         river_lengths = {}
@@ -264,15 +266,20 @@ class REMMaker(object):
         longest_river = max(river_lengths, key=river_lengths.get)
         self.river_length = river_lengths[longest_river]
         logging.info(f"\nLongest river in domain: {longest_river}\n")
+        
         # if river length is shorter than geometric mean of DEM dimensions, print warning
         x_min, y_min, x_max, y_max = self.extent
         if self.river_length < np.sqrt((x_max - x_min) * (y_max - y_min)):
             print("WARNING: River length is shorter than DEM length. Ensure the target river is on OpenStreetMap\n"
                   "and contains \"waterway\" and \"name\" tags: https://www.openstreetmap.org/edit")
-        # only keep longest river to make REM
-        self.rivers = self.rivers[self.rivers.river_name == longest_river]
+        
+        # TODO: Why not use all rivers to make REM, intead of longest river???
+        # # only keep longest river to make REM
+        # self.rivers = self.rivers[self.rivers.river_name == longest_river]
+
         # convert linestrings of river to points
         self.lines2pts()
+        
         # make shapefile of points
         self.make_river_shp()
         return

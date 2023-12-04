@@ -4,6 +4,7 @@ import os, time
 import pystac
 import pystac_client
 import planetary_computer
+from pathlib import Path
 
 import rioxarray
 import xarray as xr
@@ -53,10 +54,24 @@ for tile_name in ["Copernicus_DSM_COG_10_N02_00_W072_00"]: # ids:
     # ds, ds.values
 
     # derive REM from DEM, and save it to "./outputs/" folder
-    os.mkdir("./outputs")
+    # os.mkdir("./outputs")
 
+    SHP_KEY = "OSM" # choose centerline source
+    SHP_DICT = {
+        "OSM": None, # default: only use the longest river.
+        'RivGraph': "./inputs/Colombia/Colombia_N02_00_W072_00_links.shp", # Surface Water extracted SHP
+        "SWORD": "C:/Users/puzh/Downloads/SWORD_v16_shp/shp/SA/sa_sword_reaches_hb61_v16.shp", # SWORD, 
+    }
+
+    centerline_shp = SHP_DICT[SHP_KEY]
+    out_dir = f'./outputs/{SHP_KEY}'
+
+    # make directory
+    Path(out_dir).mkdir(exist_ok=True, parents=True)
+
+    # start to make REM
     start_time = time.perf_counter()
-    rem_maker = REMMaker(dem=asset_href, tile_name=tile_name, out_dir='./outputs')
+    rem_maker = REMMaker(dem=asset_href, tile_name=tile_name, centerline_shp=centerline_shp, out_dir=out_dir)
     end_time = time.perf_counter()
     print("Elapsed time: ", end_time - start_time)
     
