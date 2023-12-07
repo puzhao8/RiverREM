@@ -38,7 +38,22 @@ pprint(ids)
 # tile_name = "Copernicus_DSM_COG_10_N02_00_W072_00"
 
 # loop over each tile, calculate REM, and save 
-for tile_name in ["Copernicus_DSM_COG_10_N02_00_W072_00"]: # ids:
+for tile_name in [
+                    # "Copernicus_DSM_COG_10_N10_00_W075_00",
+                    # "Copernicus_DSM_COG_10_N10_00_W074_00",
+                    # "Copernicus_DSM_COG_10_N05_00_W075_00",
+                    # "Copernicus_DSM_COG_10_N03_00_W078_00",
+                    # "Copernicus_DSM_COG_10_N03_00_W077_00",
+                    # "Copernicus_DSM_COG_10_N06_00_W076_00",
+                    # "Copernicus_DSM_COG_10_N05_00_W078_00",  # error happened here
+                    
+                    "Copernicus_DSM_COG_10_N07_00_W073_00",
+                    "Copernicus_DSM_COG_10_N09_00_W076_00",
+                    "Copernicus_DSM_COG_10_N09_00_W075_00",
+                    "Copernicus_DSM_COG_10_N08_00_W077_00",
+                    "Copernicus_DSM_COG_10_N08_00_W075_00",
+
+                ]: # ids:
     print()
     print(tile_name)
 
@@ -56,14 +71,17 @@ for tile_name in ["Copernicus_DSM_COG_10_N02_00_W072_00"]: # ids:
     # derive REM from DEM, and save it to "./outputs/" folder
     # os.mkdir("./outputs")
 
-    SHP_KEY = "OSM" # choose centerline source
+    SHP_KEY = "FreeFlowRiverV1" # choose centerline source
     SHP_DICT = {
         "OSM": None, # default: only use the longest river.
+        'FreeFlowRiverV1': "C:/DHI/River_Networks/FreeFlowRiverV1/FreeFlowRiverV1_RIV_ORD_lte5.shp", # Free Flow River V1
+        'HydroRiverV1': "C:/DHI/River_Networks/HydroRiverV1\HydroRivers_v10_sa/HydroRivers_v10_sa.shp", # HydroRiverV1
+        "SWORD": "C:/DHI/River_Networks/SWORD_v16_shp/shp/SA/sa_sword_reaches_hb61_v16.shp", # SWORD,
         'RivGraph': "./inputs/Colombia/Colombia_N02_00_W072_00_links.shp", # Surface Water extracted SHP
-        "SWORD": "C:/Users/puzh/Downloads/SWORD_v16_shp/shp/SA/sa_sword_reaches_hb61_v16.shp", # SWORD, 
     }
 
-    centerline_shp = SHP_DICT[SHP_KEY]
+    if 'OSM' in SHP_KEY: centerline_shp = None
+    else: centerline_shp = SHP_DICT[SHP_KEY]
     out_dir = f'./outputs/{SHP_KEY}'
 
     # make directory
@@ -71,11 +89,12 @@ for tile_name in ["Copernicus_DSM_COG_10_N02_00_W072_00"]: # ids:
 
     # start to make REM
     start_time = time.perf_counter()
+
     rem_maker = REMMaker(dem=asset_href, tile_name=tile_name, centerline_shp=centerline_shp, out_dir=out_dir)
+    rem_maker.make_rem_viz(cmap='Blues', z=8)
+
     end_time = time.perf_counter()
     print("Elapsed time: ", end_time - start_time)
-    
-    rem_maker.make_rem_viz(cmap='Blues', z=8)
 
 
 # TODO

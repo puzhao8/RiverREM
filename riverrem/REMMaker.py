@@ -16,6 +16,9 @@ import time
 from riverrem.RasterViz import RasterViz
 import logging
 
+import matplotlib.pyplot as plt
+from imageio import imread, imsave
+
 level = logging.INFO
 fmt = '[%(levelname)s] %(asctime)s - %(message)s'
 logging.basicConfig(level=level, format=fmt)
@@ -220,9 +223,12 @@ class REMMaker(object):
         target_crs = osr.SpatialReference()
         target_crs.ImportFromEPSG(4326)  # WGS84 Geographic Coordinate System
         transform = osr.CoordinateTransformation(source_crs, target_crs)
-        ul_lat, ul_long = transform.TransformPoint(upper_left_x, upper_left_y)[:2]
-        lr_lat, lr_long = transform.TransformPoint(lower_right_x, lower_right_y)[:2]
-        self.bbox = [ul_lat, lr_lat, lr_long, ul_long]
+        ul_lat, ul_long = transform.TransformPoint(upper_left_x, upper_left_y)[:2] # upper-left lat and long
+        lr_lat, lr_long = transform.TransformPoint(lower_right_x, lower_right_y)[:2] # lower-left lat and long
+
+        # boundary box [upper_left_lat, lower_right_lat, lower_right_long, upper_left_long]
+        self.bbox = [ul_lat, lr_lat, lr_long, ul_long] 
+
         # function for mapping indices to x, y coords
         logging.info("Mapping array indices to coordinates.")
         self.ix2coords = lambda t: np.column_stack(np.array([t[0] * x_size + upper_left_x + (x_size / 2),
@@ -234,14 +240,24 @@ class REMMaker(object):
         logging.info("Finding river centerline.")
         # get OSM Ways within bbox of DEM (returns geopandas geodataframe)
         osmnx.settings.cache_folder = './.osm_cache'
-        self.rivers = osmnx.geometries_from_bbox(*self.bbox, tags={'waterway': ['river', 'stream', 'tidal channel']})
+
+        # TODO: Shall we do buffering on bbox to include close rivers? 
+        # [upper_left_lat, lower_right_lat, lower_right_long, upper_left_long]
+        deg_to_expand = 1
+        bbox_expand = [self.bbox[0]+deg_to_expand, self.bbox[1]-deg_to_expand, self.bbox[2]+deg_to_expand, self.bbox[3]-deg_to_expand] # expand bbox by 1 degree, added by puzhao@DHI
+        self.rivers = osmnx.features_from_bbox(*bbox_expand, tags={'waterway': ['river', 'stream', 'tidal channel']})
+
+        # self.rivers = osmnx.feature_from_bbox(*self.bbox, tags={'waterway': ['river', 'stream', 'tidal channel']})
+
         if len(self.rivers) == 0:
             raise Exception("No rivers found within the DEM domain. Ensure the target river is on OpenStreetMap\n"
                             "and contains \"waterway\" and \"name\" tags: https://www.openstreetmap.org/edit")
         # read into geodataframe with same CRS as DEM
         self.rivers = self.rivers.to_crs(epsg=self.epsg_code)
-        # crop to DEM extent
+
+        # # crop to DEM extent
         self.rivers = clip(self.rivers, box(*self.extent))
+        
         # get river names (drop ones without a name)
         self.rivers = self.rivers.dropna(subset=['name'])
         names = self.rivers.name.values
@@ -384,17 +400,22 @@ class REMMaker(object):
         if not self.k:
             self.k = self.estimate_k()
         logging.info(f"Using k = {self.k} nearest neighbors.")
+
         # coords to interpolate over (don't interpolate where DEM is null or on centerline where REM = 0)
         interp_indices = np.where(~(np.isnan(self.dem_array) | (self.centerline_array == 1)))
+
         logging.info("Getting coords of points to interpolate.")
         c_interpolate = self.ix2coords(interp_indices)
+
         # create 2D tree
         logging.info("Constructing tree.")
         tree = KDTree(self.river_coords)
+
         # find k nearest neighbors
         logging.info("Querying tree.")
         logging.info("Chunking query...")
         chunk_size = 1e6
+
         # iterate over chunks
         chunk_count = c_interpolate.shape[0] // chunk_size + 1
         interpolated_values = np.array([])
@@ -402,18 +423,28 @@ class REMMaker(object):
             logging.info(f"{i / chunk_count * 100:.2f}%")
             # distances, indices = tree.query(chunk, k=self.k, eps=self.eps, workers=self.workers) # modified by puzhao ------------------ double check
             distances, indices = tree.query(chunk, k=self.k, eps=self.eps)
+
             # interpolate (IDW with power = 1)
             weights = 1 / distances  # weight river elevations by 1 / distance
             weights = weights / weights.sum(axis=1).reshape(-1, 1)  # normalize weights
             interpolated_values = np.append(interpolated_values, (weights * self.river_wses[indices]).sum(axis=1))
+
         # create interpolated WSE array as elevations along centerline, nans everywhere else
         logging.info("Created interpolated WSE array.")
         self.wse_interp_array = np.where(self.centerline_array == 1, self.dem_array, np.nan)
+
         # add the interpolated eleation values
         self.wse_interp_array[interp_indices] = interpolated_values
         return
 
     def detrend_dem(self):
+        "visualize dem_array and wse_interp_array"
+
+        plt.imshow(self.wse_interp_array)
+        plt.colorbar()
+        plt.savefig(os.path.join(self.out_dir, f"{self.dem_name}_DEM_interpolated.png"))
+        plt.close()
+
         """Subtract interpolated river elevation from DEM elevation to get REM"""
         logging.info("\nDetrending DEM.")
         self.rem_array = self.dem_array - self.wse_interp_array
