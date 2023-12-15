@@ -8,6 +8,7 @@ import subprocess
 import seaborn as sn
 import numpy as np
 import time
+import rasterio
 start = time.time()  # track time for script to finish
 
 usage = """
@@ -458,6 +459,8 @@ class RasterViz(object):
         :return: .txt file containing colormap mapped to DEM
         """
         min_elev, max_elev = self.get_elev_range()
+        if max_elev <= min_elev: max_elev = min_elev + 1.0 # added by puzhao
+
         if log_scale:
             # sample 255 log-spaced elevation values from 0 to max elevation / 2
             elevations = np.logspace(0, np.log10(0.5 * max_elev), 255) - 1
@@ -487,14 +490,20 @@ class RasterViz(object):
             print("WARNING: CRS metadata is missing for input DEM.")
         return epsg_code, h_unit
 
+    # def get_elev_range(self):
+    #     """Get range (min, max) of DEM elevation values."""
+    #     ras = gdal.Open(self.dem, gdal.GA_ReadOnly)
+    #     elevband = ras.GetRasterBand(1)
+    #     elevband.ComputeStatistics(0)
+    #     min_elev = elevband.GetMinimum()
+    #     max_elev = elevband.GetMaximum()
+    #     return min_elev, max_elev
+    
     def get_elev_range(self):
         """Get range (min, max) of DEM elevation values."""
-        ras = gdal.Open(self.dem, gdal.GA_ReadOnly)
-        elevband = ras.GetRasterBand(1)
-        elevband.ComputeStatistics(0)
-        min_elev = elevband.GetMinimum()
-        max_elev = elevband.GetMaximum()
-        return min_elev, max_elev
+        with rasterio.open(self.dem, "r") as raster:
+            ras = raster.read(1)
+        return ras.min(), ras.max()
 
     def tile_and_compress(self, in_path, out_path):
         """Used to turn intermediate raster viz products into final outputs."""

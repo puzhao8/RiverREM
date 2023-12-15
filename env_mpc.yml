@@ -1,3 +1,4 @@
+name: mpc
 channels:
   - conda-forge
   - conda-forge/label/cf202003

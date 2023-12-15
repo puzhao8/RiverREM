@@ -245,7 +245,7 @@ class REMMaker(object):
         # [upper_left_lat, lower_right_lat, lower_right_long, upper_left_long]
         deg_to_expand = 1
         bbox_expand = [self.bbox[0]+deg_to_expand, self.bbox[1]-deg_to_expand, self.bbox[2]+deg_to_expand, self.bbox[3]-deg_to_expand] # expand bbox by 1 degree, added by puzhao@DHI
-        self.rivers = osmnx.features_from_bbox(*bbox_expand, tags={'waterway': ['river', 'stream', 'tidal channel']})
+        self.rivers = osmnx.geometries_from_bbox(*bbox_expand, tags={'waterway': ['river', 'stream', 'tidal channel']})
 
         # self.rivers = osmnx.feature_from_bbox(*self.bbox, tags={'waterway': ['river', 'stream', 'tidal channel']})
 
@@ -295,6 +295,7 @@ class REMMaker(object):
 
         # convert linestrings of river to points
         self.lines2pts()
+        if "HydroOSM" == self.SHP_KEY: return self.river_pts
         
         # make shapefile of points
         self.make_river_shp()
@@ -311,7 +312,11 @@ class REMMaker(object):
             distances = np.linspace(0, line_string.length, point_num)
             self.river_pts.extend([line_string.interpolate(d) for d in distances])
             self.river_endpts.extend([line_string.interpolate(0), line_string.interpolate(line_string.length)])
-        return
+
+        # TODO: include all start and end points in self.river_pts
+        self.river_pts.extend(self.river_endpts)
+            
+        return self.river_pts
 
     def make_river_shp(self):
         """Make points along river centerline into a shapefile"""
@@ -347,20 +352,32 @@ class REMMaker(object):
         self.rivers = read_file(self.centerline_shp).to_crs(epsg=self.epsg_code)
         self.rivers = clip(self.rivers, box(*self.extent))
         self.river_length = self.rivers.length.sum()
-        self.lines2pts()
+        usr_river_pnts = self.lines2pts()
+
+        # Merge OSM and HydroRiver 
+        if "HydroOSM" == self.SHP_KEY:
+            osm_river_pnts = self.get_river_centerline()
+            self.river_pts = osm_river_pnts + usr_river_pnts
+        else:
+            self.river_pts = usr_river_pnts
+        
         self.make_river_shp()
 
     def get_river_elev(self):
         """Get DEM values along river centerline"""
         logging.info("Getting river elevation at DEM pixels.")
+
         # gdal_rasterize centerline
-        self.centerline_ras = os.path.join(self.cache_dir, f"{self.dem_name}_centerline.tif")
+        # self.centerline_ras = os.path.join(self.cache_dir, f"{self.dem_name}_centerline.tif")
+        self.centerline_ras = os.path.join(self.out_dir, f"{self.dem_name}_centerline.tif")
         extent = f"-te {' '.join(map(str, self.extent))}"
         res = f"-tr {self.cell_w} {self.cell_h}"
         gdal.Rasterize(self.centerline_ras, self.river_shp, options=f"-a id {extent} {res}")
+
         # raster to numpy array same shape as DEM
         r = gdal.Open(self.centerline_ras, gdal.GA_ReadOnly)
         self.centerline_array = r.GetRasterBand(1).ReadAsArray()
+
         # remove cells where DEM is null
         self.centerline_array = np.where(np.isnan(self.dem_array), np.nan, self.centerline_array)
         # get coordinates and DEM elevation at river pixels
@@ -469,10 +486,13 @@ class REMMaker(object):
         :rtype: str
 
         """
-        if self.centerline_shp is None:
+        start_time = time.perf_counter()
+        if self.centerline_shp is None:  # OSM
             self.get_river_centerline()
         else:
             self.read_centerline_input()
+        print(f"river centerline took: {time.perf_counter() - start_time}")
+
         self.get_river_elev()
         self.interp_river_elev()
         self.detrend_dem()
