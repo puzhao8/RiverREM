@@ -62,7 +62,7 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
     demImgCol_ = demImgCol.filterBounds(aoi.buffer(bufferSize).bounds())
     aoi_9x = ee.FeatureCollection(demImgCol_.toList(demImgCol_.size()).map(lambda x: ee.Feature(ee.Image(x).geometry()))).union().geometry()
     
-    demImgCol_ = demImgCol.filterBounds(aoi_9x)
+    demImgCol_ = demImgCol.filterBounds(aoi_9x.buffer(bufferSize).bounds())
     aoi_25x = ee.FeatureCollection(demImgCol_.toList(demImgCol_.size()).map(lambda x: ee.Feature(ee.Image(x).geometry()))).union().geometry()
 
     dem = demImgCol_.mosaic().select('DEM').rename("elevation")
@@ -112,64 +112,65 @@ def detrend_dem_by_subtracting_local_minimum(aoi, radius=200):
 
 
 """ Configuration """
-print('-----------------------------------------------------------------------')
-riverNetwork = 'JRC_GSW' # HydroRiverV1, MERIT_centerline, JRC_GSW, 
-dstImgCol = f"projects/global-wetland-watch/assets/features/REM_{riverNetwork}_V1"
+print('*****************************************************************************')
+for riverNetwork in  ['HydroRiverV1', 'MERIT_centerline', 'JRC_GSW']:
+    print('-------------------------------------------------------------------------')
+    dstImgCol = f"projects/global-wetland-watch/assets/features/REM_{riverNetwork}_V1"
 
-print(riverNetwork)
-print(dstImgCol)
-print('------------------------------------------------------------------------')
-
-
-""" Dataset """
-# Country Boundaries
-FAO = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level0")
-Colombia = FAO.filter(ee.Filter.eq("ADM0_NAME", "Colombia"))
-
-# DEM
-demImgCol = ee.ImageCollection("COPERNICUS/DEM/GLO30")
-dem_tiles = demImgCol.filterBounds(Colombia)
-tile_list = sorted(dem_tiles.aggregate_array("system:index").getInfo())
-print(f"tile size: {len(tile_list)}")
-
-# tile_name = tile_list[0]
-tile_list = [f"N0{lat}_00_W0{lon}_00" for lat in [4,5] for lon in [73, 74]]
+    print(riverNetwork)
+    print(dstImgCol)
+    print('------------------------------------------------------------------------')
 
 
-import os, subprocess
-asset_list = subprocess.getstatusoutput(f"earthengine ls {dstImgCol}")[-1].split('\n')
-asset_ids = [os.path.split(asset_id)[-1] for asset_id in asset_list]
+    """ Dataset """
+    # Country Boundaries
+    FAO = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level0")
+    Colombia = FAO.filter(ee.Filter.eq("ADM0_NAME", "Colombia"))
+
+    # DEM
+    demImgCol = ee.ImageCollection("COPERNICUS/DEM/GLO30")
+    dem_tiles = demImgCol.filterBounds(Colombia)
+    tile_list = sorted(dem_tiles.aggregate_array("system:index").getInfo())
+    print(f"tile size: {len(tile_list)}")
+
+    # tile_name = tile_list[0]
+    tile_list = [f"N0{lat}_00_W0{lon}_00" for lat in [4,5] for lon in [73, 74]]
 
 
-# # remove from list if a tile REM has already been uploaded. 
-if False:
-    tile_list = [tile_name for tile_name in tile_list if tile_name not in asset_ids]
+    import os, subprocess
+    asset_list = subprocess.getstatusoutput(f"earthengine ls {dstImgCol}")[-1].split('\n')
+    asset_ids = [os.path.split(asset_id)[-1] for asset_id in asset_list]
 
-print(f"len tile: {len(tile_list)}")
 
-# Tile-Wise REM Generation
-for idx, tile_name in enumerate(tile_list):
-    assetId = f"{dstImgCol}/{tile_name}"
-    print(f"idx: {idx}, asset_id: {assetId}")
+    # # remove from list if a tile REM has already been uploaded. 
+    if False:
+        tile_list = [tile_name for tile_name in tile_list if tile_name not in asset_ids]
 
-    if tile_name not in asset_ids:
+    print(f"len tile: {len(tile_list)}")
 
-        tile = (ee.ImageCollection("COPERNICUS/DEM/GLO30")
-                    .filter(ee.Filter.eq("system:index", tile_name))
-                    .first())
-        
-        aoi = tile.geometry()
+    # Tile-Wise REM Generation
+    for idx, tile_name in enumerate(tile_list):
+        assetId = f"{dstImgCol}/{tile_name}"
+        print(f"idx: {idx}, asset_id: {assetId}")
 
-        rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork)
-        # rem = detrend_dem_by_subtracting_local_minimum(aoi=aoi, radius=200)
+        if tile_name not in asset_ids:
 
-        ee.batch.Export.image.toAsset(
-            image = rem, 
-            assetId = assetId,
-            description = tile_name,
-            region = aoi,
-            crs = "EPSG:4326",
-            scale = 30,
-        ).start()
+            tile = (ee.ImageCollection("COPERNICUS/DEM/GLO30")
+                        .filter(ee.Filter.eq("system:index", tile_name))
+                        .first())
+            
+            aoi = tile.geometry()
+
+            rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork)
+            # rem = detrend_dem_by_subtracting_local_minimum(aoi=aoi, radius=200)
+
+            ee.batch.Export.image.toAsset(
+                image = rem, 
+                assetId = assetId,
+                description = tile_name,
+                region = aoi,
+                crs = "EPSG:4326",
+                scale = 30,
+            ).start()
 
 # %%
