@@ -10,11 +10,14 @@ import ee
 # ee.Authenticate()
 ee.Initialize()
 
-def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRange=5e4):
-    demImgCol = ee.ImageCollection("COPERNICUS/DEM/GLO30")
+def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRange=5e4, demName='GLO30'):
+    if 'GLO30' == demName: demImgCol = ee.ImageCollection("COPERNICUS/DEM/GLO30")
+    if 'FABDEM' == demName: demImgCol = ee.ImageCollection("projects/sat-io/open-datasets/FABDEM")
+
     aoi_buffered = aoi.buffer(idwRange).bounds()
 
     if 'HydroRiverV1' == riverNetwork:
+        ''' HydroRiverV1 Network Nodes Based Interpolation '''
         # // filter stream network to aoi
         river_networks = ee.FeatureCollection("WWF/HydroSHEDS/v1/FreeFlowingRivers")
         aoi_network = (river_networks.filterBounds(aoi_buffered)
@@ -31,8 +34,35 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
 
     # MERIT-Based Sampling
     if 'MERIT_centerline' == riverNetwork:
+        ''' MERIT Centerline Raster Based Point Sampling '''
+
         MERIT = ee.Image('MERIT/Hydro/v1_0_1')
         riverMask =  MERIT.select('wth').updateMask(MERIT.select('wth').gt(0)).int().rename('mask') # MERIT Centerline
+        network_nodes = riverMask.stratifiedSample(
+            numPoints = 1e4,
+            classBand = 'mask',
+            region = aoi_buffered,
+            scale = 100,
+            geometries = True,
+        ) #// Replace NUMBER_OF_POINTS with the number of points you want
+
+    
+    # MERIT-Based Sampling
+    if 'MERIT_SWORD' == riverNetwork:
+        ''' Combined River Networks between MERIT Centerline and SWORD '''
+        #  SWORD (SWOT River Database) is based on a variety of datasets, including the Global River Widths from Landsat (GRWL 30m) database, 
+        #  MERIT-Hydro (90m), and the Global River Obstruction Database (GROD)
+
+        MERIT = ee.Image('MERIT/Hydro/v1_0_1')
+        riverMask =  MERIT.select('wth').updateMask(MERIT.select('wth').gt(0)).int().rename('mask') # MERIT Centerline
+
+        SWORD_hb62 = ee.FeatureCollection("projects/global-wetland-watch/assets/features/sa_sword_reaches_hb62_v16")
+        SWORD_hb61 = ee.FeatureCollection("projects/global-wetland-watch/assets/features/sa_sword_reaches_hb61_v16")
+        SWORD = SWORD_hb62.merge(SWORD_hb61)
+        SWORD_raster = ee.Image(SWORD.reduceToImage(['type'], ee.Reducer.first())).reproject('EPSG:4326', None, 90)
+        riverMask = riverMask.unmask().add(SWORD_raster.unmask()).gt(0)
+        riverMask = riverMask.updateMask(riverMask)
+
         network_nodes = riverMask.stratifiedSample(
             numPoints = 1e4,
             classBand = 'mask',
@@ -44,6 +74,7 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
         # network_nodes = network_nodes.merge(merit_nodes)
 
     if 'JRC_GSW' == riverNetwork:
+        ''' JRC Global Surface Water Based Point Sampling '''
         GSW = ee.Image('JRC/GSW1_4/GlobalSurfaceWater')
         riverMask =  GSW.select('max_extent').mask(GSW.select('max_extent')).rename('mask') #// MERIT Centerline
         network_nodes = riverMask.stratifiedSample(
@@ -65,7 +96,8 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
     demImgCol_ = demImgCol.filterBounds(aoi_9x.buffer(bufferSize).bounds())
     aoi_25x = ee.FeatureCollection(demImgCol_.toList(demImgCol_.size()).map(lambda x: ee.Feature(ee.Image(x).geometry()))).union().geometry()
 
-    dem = demImgCol_.mosaic().select('DEM').rename("elevation")
+    if 'GLO30' == demName: dem = demImgCol_.mosaic().select('DEM').rename("elevation")
+    if 'FABDEM' == demName: dem = demImgCol_.mosaic().select('b1').rename("elevation").setDefaultProjection('EPSG:3857', None, 30)
     aoi_stats = dem.reduceRegion(
         reducer = reducers,
         geometry = aoi_25x,
@@ -113,9 +145,9 @@ def detrend_dem_by_subtracting_local_minimum(aoi, radius=200):
 
 """ Configuration """
 print('*****************************************************************************')
-for riverNetwork in  ['HydroRiverV1', 'MERIT_centerline', 'JRC_GSW']:
+for riverNetwork in  ['MERIT_SWORD']: # 'HydroRiverV1', 'MERIT_centerline', 'JRC_GSW', 'MERIT_SWORD'
     print('-------------------------------------------------------------------------')
-    dstImgCol = f"projects/global-wetland-watch/assets/features/REM_{riverNetwork}_V1"
+    dstImgCol = f"projects/global-wetland-watch/assets/features/REM_{riverNetwork}"
 
     print(riverNetwork)
     print(dstImgCol)
@@ -134,7 +166,7 @@ for riverNetwork in  ['HydroRiverV1', 'MERIT_centerline', 'JRC_GSW']:
     print(f"tile size: {len(tile_list)}")
 
     # tile_name = tile_list[0]
-    tile_list = [f"N0{lat}_00_W0{lon}_00" for lat in [4,5] for lon in [73, 74]]
+    exclude_tile_list = [f"N0{lat}_00_W0{lon}_00" for lat in [4,5] for lon in [73, 74]]
 
 
     import os, subprocess
@@ -144,7 +176,7 @@ for riverNetwork in  ['HydroRiverV1', 'MERIT_centerline', 'JRC_GSW']:
 
     # # remove from list if a tile REM has already been uploaded. 
     if False:
-        tile_list = [tile_name for tile_name in tile_list if tile_name not in asset_ids]
+        tile_list = [tile_name for tile_name in tile_list if tile_name not in exclude_tile_list]
 
     print(f"len tile: {len(tile_list)}")
 
@@ -161,7 +193,7 @@ for riverNetwork in  ['HydroRiverV1', 'MERIT_centerline', 'JRC_GSW']:
             
             aoi = tile.geometry()
 
-            rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork)
+            rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork, demName='FABDEM')
             # rem = detrend_dem_by_subtracting_local_minimum(aoi=aoi, radius=200)
 
             ee.batch.Export.image.toAsset(
