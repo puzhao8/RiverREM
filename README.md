@@ -9,6 +9,7 @@ RiverREM is a Python package for automatically generating river relative elevati
 For more information on REMs and this project see [this OpenTopography blog post](https://opentopography.org/blog/new-package-automates-river-relative-elevation-model-rem-generation).
 
 ![birch_creek_REM](docs/pics/birch_crop.png)
+![REM comparison](figures/REM_Comparison.png)
 
 ## Installation
 

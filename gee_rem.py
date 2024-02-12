@@ -1,7 +1,7 @@
 #%% 
 
 # RiverREM in GEE: https://code.earthengine.google.com/797ba7d668ea39c18a6b57b48b6c0b70
-# REM Comparison in GEE: https://code.earthengine.google.com/74904fad6e0ff695d46dc9f25656976e
+# REM Comparison in GEE: https://code.earthengine.google.com/eb27dcdd4c00f519e77df53cee00f11d
 # River Network Comparion: https://code.earthengine.google.com/8bcd31f882bf5fa163094cbe8d8ff683
 # MERIT + SWORD: https://code.earthengine.google.com/9b964b0946e889e2d75e9768b35b822c
 # Understand IDW: https://code.earthengine.google.com/ed68f36c3d2f5f205e7e1a36f702fd42
