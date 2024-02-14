@@ -1,6 +1,6 @@
 #%% 
 
-# RiverREM in GEE: https://code.earthengine.google.com/797ba7d668ea39c18a6b57b48b6c0b70
+# RiverREM in GEE: https://code.earthengine.google.com/735f0ae34befdbef0ad7dfdfe2fa21cf
 # REM Comparison in GEE: https://code.earthengine.google.com/eb27dcdd4c00f519e77df53cee00f11d
 # River Network Comparion: https://code.earthengine.google.com/cff98f41c938a99aafd9268fec9a4ee2
 # Understand IDW: https://code.earthengine.google.com/ed68f36c3d2f5f205e7e1a36f702fd42
@@ -64,10 +64,10 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
         riverMask = riverMask.updateMask(riverMask)
 
         network_nodes = riverMask.stratifiedSample(
-            numPoints = 1e4,
+            numPoints = 5e4,
             classBand = 'mask',
             region = aoi_buffered,
-            scale = 100,
+            scale = 30,
             geometries = True,
         ) #// Replace NUMBER_OF_POINTS with the number of points you want
 
