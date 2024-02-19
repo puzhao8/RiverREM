@@ -59,7 +59,7 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
         SWORD_hb62 = ee.FeatureCollection("projects/global-wetland-watch/assets/features/sa_sword_reaches_hb62_v16")
         SWORD_hb61 = ee.FeatureCollection("projects/global-wetland-watch/assets/features/sa_sword_reaches_hb61_v16")
         SWORD = SWORD_hb62.merge(SWORD_hb61)
-        SWORD_raster = ee.Image(SWORD.reduceToImage(['type'], ee.Reducer.first())).reproject('EPSG:4326', None, 90)
+        SWORD_raster = ee.Image(SWORD.reduceToImage(['type'], ee.Reducer.first())).setDefaultProjection('EPSG:4326', None, 30)
         riverMask = riverMask.unmask().add(SWORD_raster.unmask()).gt(0)
         riverMask = riverMask.updateMask(riverMask)
 
@@ -97,7 +97,7 @@ def detrend_DEM_to_REM(aoi, riverNetwork='HydroRiverV1', bufferSize=1e4, idwRang
     aoi_25x = ee.FeatureCollection(demImgCol_.toList(demImgCol_.size()).map(lambda x: ee.Feature(ee.Image(x).geometry()))).union().geometry()
 
     if 'GLO30' == demName: dem = demImgCol_.mosaic().select('DEM').rename("elevation")
-    if 'FABDEM' == demName: dem = demImgCol_.mosaic().select('b1').rename("elevation").setDefaultProjection('EPSG:3857', None, 30)
+    if 'FABDEM' == demName: dem = demImgCol_.mosaic().select('b1').rename("elevation").setDefaultProjection('EPSG:4326', None, 30)
     aoi_stats = dem.reduceRegion(
         reducer = reducers,
         geometry = aoi_25x,
@@ -144,10 +144,12 @@ def detrend_dem_by_subtracting_local_minimum(aoi, radius=200):
 
 
 """ Configuration """
+demName='FABDEM'
+
 print('*****************************************************************************')
 for riverNetwork in  ['MERIT_SWORD']: # 'HydroRiverV1', 'MERIT_centerline', 'JRC_GSW', 'MERIT_SWORD'
     print('-------------------------------------------------------------------------')
-    dstImgCol = f"projects/global-wetland-watch/assets/features/REM_{riverNetwork}"
+    dstImgCol = f"projects/global-wetland-watch/assets/features/REM"
 
     print(riverNetwork)
     print(dstImgCol)
@@ -157,11 +159,11 @@ for riverNetwork in  ['MERIT_SWORD']: # 'HydroRiverV1', 'MERIT_centerline', 'JRC
     """ Dataset """
     # Country Boundaries
     FAO = ee.FeatureCollection("FAO/GAUL_SIMPLIFIED_500m/2015/level0")
-    Colombia = FAO.filter(ee.Filter.eq("ADM0_NAME", "Colombia"))
+    country = FAO.filter(ee.Filter.eq("ADM0_NAME", "Colombia"))
 
     # DEM
     demImgCol = ee.ImageCollection("COPERNICUS/DEM/GLO30")
-    dem_tiles = demImgCol.filterBounds(Colombia)
+    dem_tiles = demImgCol.filterBounds(country)
     tile_list = sorted(dem_tiles.aggregate_array("system:index").getInfo())
     print(f"tile size: {len(tile_list)}")
 
@@ -193,8 +195,14 @@ for riverNetwork in  ['MERIT_SWORD']: # 'HydroRiverV1', 'MERIT_centerline', 'JRC
             
             aoi = tile.geometry()
 
-            rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork, demName='FABDEM')
+            rem = detrend_DEM_to_REM(aoi=aoi, riverNetwork=riverNetwork, demName=demName)
             # rem = detrend_dem_by_subtracting_local_minimum(aoi=aoi, radius=200)
+            rem = rem.toInt16().set({
+                'dem_name': demName, # dem used
+                'river_network': riverNetwork, # river nework used
+                'points_per_tile': 5e4, # number of the desired points per tile
+                'sample_scale': 30, # the resolution the points are sampled at
+            })
 
             ee.batch.Export.image.toAsset(
                 image = rem, 
